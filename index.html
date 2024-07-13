@@ -1,20 +1,31 @@
+
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>flood py d.bro</title>
+    <title>FLOOD D.BRO</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            margin: 20px;
-            background-color: #f0f0f0;
+            margin: 0;
+            padding: 0;
+            background-image: url('https://up6.cc/2024/06/171880659441131.jpg'); 
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
         .container {
-            background-color: white;
+            background-color: rgba(255, 255, 255, 0.8);
             padding: 20px;
             border-radius: 8px;
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            margin: 20px;
+            flex-grow: 1;
         }
         textarea, input {
             width: 100%;
@@ -32,12 +43,19 @@
             border: 1px solid #ccc;
             padding: 10px;
             margin-top: 20px;
+            background-color: white;
+        }
+        footer {
+            text-align: center;
+            padding: 10px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>setting flood d.bro</h2>
+        <h2>FLOOD BY D.BRO</h2>
         <textarea id="accounts" rows="5" placeholder="الحسابات (معرف:كلمة المرور في كل سطر)"></textarea>
         <textarea id="message" rows="3" placeholder="الرسالة المراد إرسالها"></textarea>
         <input type="text" id="targetUsername" placeholder="اسم المستخدم الهدف">
@@ -47,6 +65,10 @@
         <button id="stopBtn">إيقاف</button>
         <div id="log"></div>
     </div>
+
+    <footer>
+        •´¯`•. 𝐃.в𝓻𝓸 Ƒ𝓵σ𝕆ｄ ⓉΔ𝓁кᶤℕĆĦÃ𝐭 ｌ𝓸𝓵. .•´¯`•
+    </footer>
 
     <script src="floodBot.js"></script>
 </body>
