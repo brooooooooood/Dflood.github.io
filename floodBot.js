@@ -21,7 +21,7 @@ const ALLOWED_CHARS = "0123456789abcdefghijklmnopqrstuvwxyz";
 
 let isRunning = false;
 
-// وظائف المساعدة
+
 function genRandomStr(length) {
     return Array.from({length}, () => ALLOWED_CHARS[Math.floor(Math.random() * ALLOWED_CHARS.length)]).join('');
 }
@@ -56,14 +56,13 @@ async function login(ws, id, password) {
     log(`تم تسجيل الدخول: ${id}`);
 }
 
-// الوظيفة الرئيسية
+
 async function main() {
     const accounts = document.getElementById('accounts').value.split('\n').filter(line => line.trim() !== '');
     const message = document.getElementById('message').value;
     const targetUsername = document.getElementById('targetUsername').value;
     const numMessages = parseInt(document.getElementById('numMessages').value);
-    const reconnectInterval = parseInt(document.getElementById('reconnectInterval').value) * 1000; // تحويل إلى مللي ثانية
-
+    const reconnectInterval = parseInt(document.getElementById('reconnectInterval').value) 
     while (isRunning) {
         for (const idPass of accounts) {
             if (!isRunning) break;
@@ -100,7 +99,7 @@ async function main() {
     }
 }
 
-// إعداد أحداث الأزرار
+
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('startBtn').addEventListener('click', () => {
         if (!isRunning) {
