@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>flood py .dbro.</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        textarea, input {
+            width: 100%;
+            margin-bottom: 10px;
+            padding: 5px;
+        }
+        button {
+            padding: 10px;
+            margin-right: 10px;
+            cursor: pointer;
+        }
+        #log {
+            height: 200px;
+            overflow-y: scroll;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>إعدادات بوت الفيضان</h2>
+        <textarea id="accounts" rows="5" placeholder="الحسابات (معرف:كلمة المرور في كل سطر)"></textarea>
+        <textarea id="message" rows="3" placeholder="الرسالة المراد إرسالها"></textarea>
+        <input type="text" id="targetUsername" placeholder="اسم المستخدم الهدف">
+        <input type="number" id="numMessages" placeholder="عدد الرسائل لكل حساب" value="5">
+        <input type="number" id="reconnectInterval" placeholder="فترة إعادة الاتصال (بالثواني)" value="5">
+        <button id="startBtn">بدء</button>
+        <button id="stopBtn">إيقاف</button>
+        <div id="log"></div>
+    </div>
+
+    <script src="floodBot.js"></script>
+</body>
+</html>
