@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -55,14 +54,15 @@
 </head>
 <body>
     <div class="container">
-        <h2>FLOOD BY D.BRO</h2>
-        <textarea id="accounts" rows="5" placeholder="الحسابات (معرف:كلمة المرور في كل سطر)"></textarea>
-        <textarea id="message" rows="3" placeholder="الرسالة المراد إرسالها"></textarea>
-        <input type="text" id="targetUsername" placeholder="اسم المستخدم الهدف">
-        <input type="number" id="numMessages" placeholder="عدد الرسائل لكل حساب" value="5">
-        <input type="number" id="reconnectInterval" placeholder="فترة إعادة الاتصال (بالثواني)" value="5">
-        <button id="startBtn">بدء</button>
-        <button id="stopBtn">إيقاف</button>
+        <h2>Flood Bot D.BRO Settings</h2>
+        <textarea id="accounts" rows="5" placeholder="Accounts (id:password on each line)"></textarea>
+        <textarea id="message" rows="3" placeholder="Message to send"></textarea>
+        <textarea id="targetUsername" rows="3" placeholder="Target usernames (one per line)"></textarea>
+        <input type="number" id="numMessages" placeholder="Number of messages per account" value="5">
+        <input type="number" id="reconnectInterval" placeholder="Reconnect interval (seconds)" value="5">
+        <input type="text" id="imageUrl" placeholder="Image URL to send">
+        <button id="startBtn">Start</button>
+        <button id="stopBtn">Stop</button>
         <div id="log"></div>
     </div>
 
