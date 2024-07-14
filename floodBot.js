@@ -1,139 +1,28 @@
-let ws;
+const HANDLER_PROFILE_UPDATE = "profile_update";
+const HANDLER_CHAT_MESSAGE = "chat_message";
+const MSG_BODY = "body";
+const MSG_FROM = "from";
+const MSG_TO = "to";
+const MSG_TYPE_TXT = "text";
+const MSG_LENGTH = "length";
+const MSG_TYPE_IMG = "image";
+const MSG_TYPE_AUDIO = "audio";
+const MSG_URL = "url";
+const ID = "id";
+const NAME = "name";
+const USERNAME = "username";
+const PASSWORD = "password";
+const ROOM = "room";
+const TYPE = "type";
+const HANDLER = "handler";
+
+const SOCKET_URL = "wss://chatp.net:5333/server";
+const ALLOWED_CHARS = "0123456789abcdefghijklmnopqrstuvwxyz";
+
 let isRunning = false;
 
-function startFlood() {
-    const accounts = document.getElementById('accounts').value.split('\n');
-    const message = document.getElementById('message').value;
-    const targetUsernames = document.getElementById('targetUsername').value.split('\n');
-    const numMessages = parseInt(document.getElementById('numMessages').value);
-    const reconnectInterval = parseInt(document.getElementById('reconnectInterval').value);
-    const imageUrl = document.getElementById('imageUrl').value;
-
-    if (!accounts.length || !message || !targetUsernames.length || !numMessages || !reconnectInterval) {
-        log('Please fill in all required fields');
-        return;
-    }
-
-    isRunning = true;
-    floodAccounts(accounts, message, targetUsernames, numMessages, reconnectInterval, imageUrl);
-}
-
-function stopFlood() {
-    isRunning = false;
-    if (ws) {
-        ws.close();
-    }
-    log('Flood stopped');
-}
-
-async function floodAccounts(accounts, message, targetUsernames, numMessages, reconnectInterval, imageUrl) {
-    while (isRunning) {
-        for (const account of accounts) {
-            if (!isRunning) break;
-            const [username, password] = account.split(':');
-            await connectAndFlood(username, password, message, targetUsernames, numMessages, imageUrl);
-            await new Promise(resolve => setTimeout(resolve, reconnectInterval * 1000));
-        }
-    }
-}
-
-async function connectAndFlood(username, password, message, targetUsernames, numMessages, imageUrl) {
-    try {
-        ws = new WebSocket('wss://chatp.net:5333/server');
-
-        ws.onopen = () => {
-            log(`WebSocket connection opened for ${username}`);
-            login(username, password);
-        };
-
-        ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            if (data.handler === 'login' && data.status === 'OK') {
-                log(`Logged in: ${username}`);
-                floodTargets(username, message, targetUsernames, numMessages, imageUrl);
-            }
-        };
-
-        ws.onclose = () => {
-            log(`WebSocket connection closed for ${username}`);
-        };
-
-        ws.onerror = (error) => {
-            log(`WebSocket error for ${username}: ${error.message}`);
-        };
-    } catch (error) {
-        log(`Connection failed for ${username}: ${error.message}`);
-    }
-}
-
-function login(username, password) {
-    const loginPayload = {
-        handler: 'login',
-        username: username,
-        password: password
-    };
-    ws.send(JSON.stringify(loginPayload));
-}
-
-async function floodTargets(username, message, targetUsernames, numMessages, imageUrl) {
-    for (const targetUsername of targetUsernames) {
-        for (let i = 0; i < numMessages; i++) {
-            if (!isRunning) return;
-            sendPrivateMessage(username, targetUsername, message);
-            sendFriendRequest(targetUsername);
-            sendPrivateImageMessage(targetUsername, imageUrl);
-            await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-    }
-}
-
-function sendPrivateMessage(fromUsername, toUsername, message) {
-    const messagePayload = {
-        handler: 'chat_message',
-        id: generateRandomString(20),
-        from: fromUsername,
-        to: toUsername,
-        type: 'text',
-        url: '',
-        body: message,
-        length: ''
-    };
-    ws.send(JSON.stringify(messagePayload));
-    log(`Message sent from ${fromUsername} to ${toUsername}`);
-}
-
-function sendPrivateImageMessage(toUsername, imageUrl) {
-    const imageMessagePayload = {
-        handler: 'chat_message',
-        id: generateRandomString(20),
-        to: toUsername,
-        type: 'image',
-        url: imageUrl,
-        body: '',
-        length: ''
-    };
-    ws.send(JSON.stringify(imageMessagePayload));
-    log(`Image sent to ${toUsername}`);
-}
-
-function sendFriendRequest(targetUsername) {
-    const friendRequestPayload = {
-        handler: 'profile_update',
-        type: 'send_friend_request',
-        value: targetUsername,
-        id: generateRandomString(17)
-    };
-    ws.send(JSON.stringify(friendRequestPayload));
-    log(`Friend request sent to ${targetUsername}`);
-}
-
-function generateRandomString(length) {
-    const characters = '0123456789abcdefghijklmnopqrstuvwxyz';
-    let result = '';
-    for (let i = 0; i < length; i++) {
-        result += characters.charAt(Math.floor(Math.random() * characters.length));
-    }
-    return result;
+function genRandomStr(length) {
+    return Array.from({length}, () => ALLOWED_CHARS[Math.floor(Math.random() * ALLOWED_CHARS.length)]).join('');
 }
 
 function log(message) {
@@ -142,5 +31,115 @@ function log(message) {
     logElement.scrollTop = logElement.scrollHeight;
 }
 
-document.getElementById('startBtn').addEventListener('click', startFlood);
-document.getElementById('stopBtn').addEventListener('click', stopFlood);
+async function sendPvtMsg(ws, id, user, msg) {
+    const jsonBody = {
+        [HANDLER]: HANDLER_CHAT_MESSAGE,
+        [ID]: genRandomStr(20),
+        [MSG_FROM]: id,
+        [MSG_TO]: user,
+        [TYPE]: MSG_TYPE_TXT,
+        [MSG_BODY]: msg,
+        [MSG_LENGTH]: ""
+    };
+    await ws.send(JSON.stringify(jsonBody));
+    log(`تم إرسال رسالة من ${id} إلى ${user}`);
+}
+
+async function sendImageMsg(ws, id, user, imageUrl) {
+    const jsonBody = {
+        [HANDLER]: HANDLER_CHAT_MESSAGE,
+        [ID]: genRandomStr(20),
+        [MSG_FROM]: id,
+        [MSG_TO]: user,
+        [TYPE]: MSG_TYPE_IMG,
+        [MSG_URL]: imageUrl,
+        [MSG_BODY]: "",
+        [MSG_LENGTH]: ""
+    };
+    await ws.send(JSON.stringify(jsonBody));
+    log(`تم إرسال صورة من ${id} إلى ${user}`);
+}
+
+async function sendFriendRequest(ws, id, targetUser) {
+    const jsonBody = {
+        [HANDLER]: HANDLER_PROFILE_UPDATE,
+        [TYPE]: "send_friend_request",
+        "value": targetUser,
+        [ID]: genRandomStr(17)
+    };
+    await ws.send(JSON.stringify(jsonBody));
+    log(`تم إرسال طلب صداقة من ${id} إلى ${targetUser}`);
+}
+
+async function login(ws, id, password) {
+    const jsonBody = {
+        [HANDLER]: "login",
+        [USERNAME]: id,
+        [PASSWORD]: password
+    };
+    await ws.send(JSON.stringify(jsonBody));
+    log(`تم تسجيل الدخول: ${id}`);
+}
+
+async function main() {
+    const accounts = document.getElementById('accounts').value.split('\n').filter(line => line.trim() !== '');
+    const message = document.getElementById('message').value;
+    const targetUsername = document.getElementById('targetUsername').value;
+    const numMessages = parseInt(document.getElementById('numMessages').value);
+    const reconnectInterval = parseInt(document.getElementById('reconnectInterval').value);
+    const imageUrl = document.getElementById('imageUrl').value;
+
+    while (isRunning) {
+        for (const idPass of accounts) {
+            if (!isRunning) break;
+            const [id, password] = idPass.split(':');
+            const ws = new WebSocket(SOCKET_URL);
+
+            await new Promise((resolve, reject) => {
+                ws.onopen = async () => {
+                    log("تم فتح الاتصال");
+                    await login(ws, id, password);
+
+                    for (let i = 0; i < numMessages; i++) {
+                        if (!isRunning) break;
+                        await sendPvtMsg(ws, id, targetUsername, message);
+                        if (imageUrl) {
+                            await sendImageMsg(ws, id, targetUsername, imageUrl);
+                        }
+                        await sendFriendRequest(ws, id, targetUsername);
+                    }
+
+                    ws.close();
+                    resolve();
+                };
+
+                ws.onerror = (error) => {
+                    log("خطأ في الاتصال: " + error);
+                    reject(error);
+                };
+
+                ws.onclose = () => {
+                    log("تم إغلاق الاتصال");
+                    resolve();
+                };
+            });
+
+            await new Promise(resolve => setTimeout(resolve, reconnectInterval * 1000));
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('startBtn').addEventListener('click', () => {
+        if (!isRunning) {
+            isRunning = true;
+            log("بدء تشغيل البوت...");
+            main().catch(error => log("حدث خطأ: " + error));
+        }
+    });
+
+    document.getElementById('stopBtn').addEventListener('click', () => {
+        isRunning = false;
+        log("جاري إيقاف البوت...");
+    });
+});
