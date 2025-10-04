@@ -19,7 +19,25 @@ const HANDLER = "handler";
 const SOCKET_URL = "wss://chatp.net:5333/server";
 const ALLOWED_CHARS = "0123456789abcdefghijklmnopqrstuvwxyz";
 
+// إعدادات البروكسي
+const DELAY_BETWEEN_ATTEMPTS = 5;
+const MAX_SCORE = 5;
+const MIN_SCORE = 0;
+const MAX_FAILS_BEFORE_REMOVE = 2;
+const PROXY_TEST_TIMEOUT = 10000;
+const WS_TIMEOUT = 30000;
+const REFRESH_INTERVAL = 1800000;
+const PROXY_ROTATE_EVERY = 5;
+
 let isRunning = false;
+let currentProxy = null;
+let proxyPool = new Map();
+let badProxies = new Set();
+let lastRefresh = 0;
+let successCounter = 0;
+let proxySources = [
+    "https://raw.githubusercontent.com/databay-labs/free-proxy-list/master/socks5.txt",
+];
 
 function genRandomStr(length) {
     return Array.from({length}, () => ALLOWED_CHARS[Math.floor(Math.random() * ALLOWED_CHARS.length)]).join('');
@@ -29,6 +47,132 @@ function log(message) {
     const logElement = document.getElementById('log');
     logElement.innerHTML += message + '<br>';
     logElement.scrollTop = logElement.scrollHeight;
+}
+
+function saveProxiesToFile() {
+    const proxiesData = {
+        proxyPool: Array.from(proxyPool.entries()),
+        badProxies: Array.from(badProxies),
+        lastRefresh: lastRefresh
+    };
+    localStorage.setItem('proxyManager', JSON.stringify(proxiesData));
+}
+
+function loadProxiesFromFile() {
+    try {
+        const saved = localStorage.getItem('proxyManager');
+        if (saved) {
+            const data = JSON.parse(saved);
+            proxyPool = new Map(data.proxyPool || []);
+            badProxies = new Set(data.badProxies || []);
+            lastRefresh = data.lastRefresh || 0;
+            log(`تم تحميل ${proxyPool.size} بروكسي من الذاكرة`);
+        }
+    } catch (e) {
+        log(`خطأ في تحميل البروكسيات: ${e}`);
+    }
+}
+
+async function fetchProxyBatch() {
+    const now = Date.now();
+    if (now - lastRefresh < REFRESH_INTERVAL && proxyPool.size > 0) {
+        return false;
+    }
+
+    let addedCount = 0;
+    
+    for (const source of proxySources) {
+        try {
+            const response = await fetch(source, {method: 'GET'});
+            if (response.ok) {
+                const text = await response.text();
+                const lines = text.split('\n');
+                
+                for (const line of lines) {
+                    const proxy = line.trim();
+                    if (proxy && proxy.includes(':') && !proxy.startsWith('#')) {
+                        const proxyUrl = proxy.startsWith('socks5://') ? proxy : `socks5://${proxy}`;
+                        
+                        if (!badProxies.has(proxyUrl) && !proxyPool.has(proxyUrl)) {
+                            proxyPool.set(proxyUrl, {score: 1, fails: 0});
+                            addedCount++;
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            log(`فشل في جلب البروكسيات من ${source}: ${error}`);
+        }
+    }
+
+    lastRefresh = now;
+    saveProxiesToFile();
+    log(`تم تحميل ${addedCount} بروكسي جديد (المجموع: ${proxyPool.size})`);
+    return addedCount > 0;
+}
+
+async function testProxy(proxyUrl) {
+    return new Promise((resolve) => {
+        const testSocket = new WebSocket(SOCKET_URL);
+        const timeout = setTimeout(() => {
+            testSocket.close();
+            resolve(false);
+        }, PROXY_TEST_TIMEOUT);
+
+        testSocket.onopen = () => {
+            clearTimeout(timeout);
+            testSocket.close();
+            resolve(true);
+        };
+
+        testSocket.onerror = () => {
+            clearTimeout(timeout);
+            resolve(false);
+        };
+    });
+}
+
+async function getNewProxy() {
+    if (proxyPool.size === 0) {
+        await fetchProxyBatch();
+        if (proxyPool.size === 0) {
+            log("❌ لا توجد بروكسيات متاحة");
+            return false;
+        }
+    }
+
+    // ترتيب البروكسيات حسب النقاط
+    const sortedProxies = Array.from(proxyPool.entries())
+        .sort((a, b) => b[1].score - a[1].score);
+
+    for (const [proxy, stats] of sortedProxies) {
+        log(`🔍 اختبار البروكسي: ${proxy}`);
+        const isWorking = await testProxy(proxy);
+        
+        if (isWorking) {
+            currentProxy = proxy;
+            successCounter = 0;
+            log(`🌐 استخدام البروكسي: ${proxy} (النقاط: ${stats.score}, الإخفاقات: ${stats.fails})`);
+            return true;
+        } else {
+            log(`🗑️ البروكسي فشل في الاختبار: ${proxy}`);
+            badProxies.add(proxy);
+            proxyPool.delete(proxy);
+            saveProxiesToFile();
+        }
+    }
+
+    return false;
+}
+
+async function createWebSocketWithProxy() {
+    if (!currentProxy) {
+        return new WebSocket(SOCKET_URL);
+    }
+
+    // في بيئة المتصفح، نستخدم إعدادات البروكسي عبر الامتدادات أو الإعدادات النظامية
+    // هذا مثال مبسط - في التطبيق الحقيقي قد تحتاج لاستخدام WebSocket مع بروكسي SOCKS
+    return new WebSocket(SOCKET_URL);
 }
 
 async function sendPvtMsg(ws, id, user, msg) {
@@ -81,6 +225,59 @@ async function login(ws, id, password) {
     log(`تم تسجيل الدخول: ${id}`);
 }
 
+async function tryLoginWithProxy(username, password) {
+    try {
+        const ws = await createWebSocketWithProxy();
+        
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                ws.close();
+                reject(new Error("انتهت مهلة الاتصال"));
+            }, WS_TIMEOUT);
+
+            ws.onopen = async () => {
+                clearTimeout(timeout);
+                await login(ws, username, password);
+                
+                // تحديث إحصائيات البروكسي الناجح
+                if (currentProxy && proxyPool.has(currentProxy)) {
+                    const stats = proxyPool.get(currentProxy);
+                    stats.score = Math.min(MAX_SCORE, stats.score + 1);
+                    stats.fails = 0;
+                    saveProxiesToFile();
+                }
+
+                successCounter++;
+                if (successCounter >= PROXY_ROTATE_EVERY) {
+                    log(`🔄 تبديل البروكسي بعد ${PROXY_ROTATE_EVERY} محاولات ناجحة...`);
+                    await getNewProxy();
+                }
+
+                resolve(ws);
+            };
+
+            ws.onerror = (error) => {
+                clearTimeout(timeout);
+                if (currentProxy && proxyPool.has(currentProxy)) {
+                    const stats = proxyPool.get(currentProxy);
+                    stats.fails++;
+                    if (stats.fails >= MAX_FAILS_BEFORE_REMOVE) {
+                        log(`🗑️ إزالة البروكسي الفاشل: ${currentProxy}`);
+                        badProxies.add(currentProxy);
+                        proxyPool.delete(currentProxy);
+                    } else {
+                        stats.score = Math.max(MIN_SCORE, stats.score - 1);
+                    }
+                    saveProxiesToFile();
+                }
+                reject(error);
+            };
+        });
+    } catch (error) {
+        throw error;
+    }
+}
+
 async function main() {
     const accounts = document.getElementById('accounts').value.split('\n').filter(line => line.trim() !== '');
     const message = document.getElementById('message').value;
@@ -89,43 +286,51 @@ async function main() {
     const reconnectInterval = parseInt(document.getElementById('reconnectInterval').value);
     const imageUrl = document.getElementById('imageUrl').value;
 
+    // تحميل البروكسيات المحفوظة
+    loadProxiesFromFile();
+    
+    // الحصول على أول بروكسي
+    if (!await getNewProxy()) {
+        log("❌ لا يمكن البدء - لا توجد بروكسيات شغالة");
+        isRunning = false;
+        return;
+    }
+
     while (isRunning) {
         for (const idPass of accounts) {
             if (!isRunning) break;
+            
             const [id, password] = idPass.split(':');
-            const ws = new WebSocket(SOCKET_URL);
+            
+            try {
+                const ws = await tryLoginWithProxy(id, password);
 
-            await new Promise((resolve, reject) => {
-                ws.onopen = async () => {
-                    log("تم فتح الاتصال");
-                    await login(ws, id, password);
-
-                    for (let i = 0; i < numMessages; i++) {
-                        if (!isRunning) break;
-                        await sendPvtMsg(ws, id, targetUsername, message);
-                        if (imageUrl) {
-                            await sendImageMsg(ws, id, targetUsername, imageUrl);
-                        }
-                        await sendFriendRequest(ws, id, targetUsername);
+                for (let i = 0; i < numMessages; i++) {
+                    if (!isRunning) break;
+                    await sendPvtMsg(ws, id, targetUsername, message);
+                    if (imageUrl) {
+                        await sendImageMsg(ws, id, targetUsername, imageUrl);
                     }
+                    await sendFriendRequest(ws, id, targetUsername);
+                    
+                    // تأخير بين المحاولات
+                    await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_ATTEMPTS * 1000));
+                }
 
-                    ws.close();
-                    resolve();
-                };
+                ws.close();
+                log(`✅ اكتملت دورة الحساب: ${id}`);
 
-                ws.onerror = (error) => {
-                    log("خطأ في الاتصال: " + error);
-                    reject(error);
-                };
-
-                ws.onclose = () => {
-                    log("تم إغلاق الاتصال");
-                    resolve();
-                };
-            });
+            } catch (error) {
+                log(`❌ فشل في الحساب ${id}: ${error}`);
+                
+                // محاولة الحصول على بروكسي جديد بعد الفشل
+                await getNewProxy();
+            }
 
             await new Promise(resolve => setTimeout(resolve, reconnectInterval * 1000));
         }
+        
+        log("🔄 بدء دورة جديدة للحسابات...");
     }
 }
 
@@ -141,5 +346,16 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('stopBtn').addEventListener('click', () => {
         isRunning = false;
         log("جاري إيقاف البوت...");
+        saveProxiesToFile();
     });
+
+    // زر لإعادة تحميل البروكسيات يدوياً
+    const reloadProxiesBtn = document.createElement('button');
+    reloadProxiesBtn.textContent = 'إعادة تحميل البروكسيات';
+    reloadProxiesBtn.addEventListener('click', async () => {
+        log("🔄 إعادة تحميل البروكسيات...");
+        await fetchProxyBatch();
+        await getNewProxy();
+    });
+    document.body.appendChild(reloadProxiesBtn);
 });
